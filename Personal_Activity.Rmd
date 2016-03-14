@@ -1,0 +1,135 @@
+---
+title: "Personal Activity"
+author: "bandha_fun"
+date: "March 12, 2016"
+output: html_document
+---
+data from  http://groupware.les.inf.puc-rio.br/har 
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(caret)
+library(e1071)
+library(rpart)
+library(randomForest)
+library(xtable)
+```
+
+## Introduction
+ Human beings have always had a quest for healthier life. Since the urbanization and the increase of stress in modern life; fast and smart workouts are increasing becoming important.   Luckily with the invention of Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively.  
+This study is find the effects of quality workouts. In particular the effects data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. 
+
+## Data Cleaning and Exploratory Analysis
+1.Data loading and cleaning
+*The training and testing data was downloaded and read into dataframes.
+
+```{r explore,echo=FALSE,warning=FALSE}
+  
+#download data file
+ download.file(url = "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv",destfile = "training.csv")
+  training <- read.csv("training.csv")
+  download.file( url = "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv",destfile ="testing.csv")
+  testing <-read.csv("testing.csv")
+  
+# Exploration of NA Values 
+  na_count <-sapply(training, function(y) sum(length(which(is.na(y)))))
+  tab <-data.frame(na_count)
+  tab$perc <- tab$na_count/nrow(training)*100
+  tab$selCol <- tab$perc <.95
+  training <- training[,tab$selCol]
+  testing <- testing[,tab$selCol]
+ 
+  
+# checked to see no trend in Non NA values in predominantly NA columns
+# Some  variables has  giberish data so these columns were removed too
+desel <- grepl("kurtosis",colnames(training)) | grepl("yaw",colnames(training))|colnames(training)=="X"
+
+training <- training[,!desel]
+testing <- testing[,!desel]
+  
+# factors with erroneous data
+colsel <- colnames(training)== "user_name" |
+  colnames(training)== "cvtd_timestamp" |
+  colnames(training)=="classe" | colnames(training)=="new_window"
+sel <- sapply(training, function(y) class(y)== "factor")
+cngsel <- sel&!colsel
+training <- training[,!cngsel] 
+testing <- testing[,!cngsel]
+```
+*Initial probing revealed `r nrow(tab)-sum(tab$selCol)` of the `r nrow(tab)` columns had 97.5% of its data NA .. these columns were discarded from both training and testing datasets.please note we still have `r sum(tab$selCol)` variables
+
+*Further probing revealed `r table(desel)[2]` had erroneous data and a index data these too were ignored so as not give a wron bias to the model. Thus giving us valid variables of `r table(desel)[1]`
+
+* also skewness factors were removed. Thus giving us valid variables of `r table(cngsel)[1]`  
+
+## Preprocessing  
+* The trainig set is devided into training set and validation set. Also the key focus of this study acceleration columns are only selected as the variables(the username and timestamp are also taken for clarity).Seed set at 3333
+
+```{r validSet , echo= FALSE,message=FALSE,warning=FALSE}
+
+set.seed(3333)
+intrain <- createDataPartition(training$classe,p=0.7,list=FALSE)
+trainSet <- training[intrain,]
+validSet <- training[-intrain,]
+dimT <- dim(trainSet)
+dimV <- dim(validSet)
+```
+* The dimension of training set is {`r dimT`}
+* The dimension of validation set is{ `r dimV`}
+
+
+
+# Model Fitting
+
+1. Bagging : Method treebag
+Seed 333  
+```{r modrp, echo=FALSE,message=FALSE,warning=FALSE}
+library(caret)
+library(randomForest)
+library(rattle)
+set.seed(333)
+modtb <- train(classe~.,trainSet,method= "treebag", preProcess = "pca")
+#fancyRpartPlot(modrp$finalModel)
+predtb <- predict(modtb,newdata = validSet)
+chk  <- predtb == validSet$classe
+acc_tb <- sum(chk)/length(chk)
+print(modtb)
+
+```
+
+* The validation set accuracy is `r round(acc_tb,2)`  
+
+
+# Prediction on testing data
+Seed 33634  
+```{r predrp, echo=FALSE,message=FALSE, warning=FALSE,fig.height= 4, fig.width= 8}
+library(caret)
+library(randomForest)
+library(rattle)
+set.seed(33634)
+pred <- predict(modtb,newdata = testing)
+dat <- data.frame(pred,x_no = 1:20)
+ggplot(dat, aes(x_no,pred,colour=pred, size = 20 ,xlab = NULL))+geom_point() +theme(legend.position="none")+xlab("")
+```
+  
+
+
+
+
+
+
+
+
+
+
+
+
+###Appendix
+Many of the variable data is skewed thus making Preprocessing is a must in model fit.   
+
+```{r totalaccel, echo=FALSE,message=FALSE,fig.height=4, fig.width= 8, warning=FALSE} 
+# simple scatter plot of total_accel vs classe   
+library(Rmisc) 
+ p<- list()
+for(i in 1:ncol(training)) p[[i]]<- histogram(training[,i],xlab= colnames(training)[i],fill = training$classe)
+multiplot(p,layout = c(13,5))
+```
