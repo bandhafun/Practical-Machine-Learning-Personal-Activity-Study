@@ -66,6 +66,7 @@ testing <- testing[,!cngsel]
 
 ```{r validSet , echo= FALSE,message=FALSE,warning=FALSE}
 
+print(str(training))
 set.seed(3333)
 intrain <- createDataPartition(training$classe,p=0.7,list=FALSE)
 trainSet <- training[intrain,]
@@ -80,7 +81,7 @@ dimV <- dim(validSet)
 
 # Model Fitting
 
-1. Bagging : Method treebag
+1. Bagging : best Method fit was treebag
 Seed 333  
 ```{r modrp, echo=FALSE,message=FALSE,warning=FALSE}
 library(caret)
@@ -88,15 +89,19 @@ library(randomForest)
 library(rattle)
 set.seed(333)
 modtb <- train(classe~.,trainSet,method= "treebag", preProcess = "pca")
-#fancyRpartPlot(modrp$finalModel)
-predtb <- predict(modtb,newdata = validSet)
-chk  <- predtb == validSet$classe
-acc_tb <- sum(chk)/length(chk)
 print(modtb)
 
 ```
 
-* The validation set accuracy is `r round(acc_tb,2)`  
+# Cross Validation
+```{r vald, echo=TRUE,message=FALSE,warning=FALSE}
+predtb <- predict(modtb,newdata = validSet)
+chk  <- predtb == validSet$classe
+acc_tb <- sum(chk)/length(chk) 
+
+```
+
+* The Cross validation set accuracy is `r round(acc_tb,2)`  
 
 
 # Prediction on testing data
